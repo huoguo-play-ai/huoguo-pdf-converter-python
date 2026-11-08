@@ -359,19 +359,29 @@ def _border(tag, val='single', sz=4, space=0, color='000000'):
     return el
 
 
-def _ppr_append(p, el):
-    pPr = p._p.get_or_add_pPr()
-    order = ['w:pStyle', 'w:keepNext', 'w:keepLines', 'w:pageBreakBefore', 'w:widowControl', 'w:pBdr',
-             'w:shd', 'w:tabs', 'w:autoSpaceDE', 'w:autoSpaceDN', 'w:spacing', 'w:ind', 'w:jc']
+# Word 要求 pPr、tblPr 里的子元素按规范顺序排列，顺序错了 Word 会报「文件已损坏」
+PPR_ORDER = ('pStyle keepNext keepLines pageBreakBefore framePr widowControl numPr suppressLineNumbers pBdr shd '
+             'tabs suppressAutoHyphens kinsoku wordWrap overflowPunct topLinePunct autoSpaceDE autoSpaceDN bidi '
+             'adjustRightInd snapToGrid spacing ind contextualSpacing mirrorIndents suppressOverlap jc '
+             'textDirection textAlignment textboxTightWrap outlineLvl divId cnfStyle rPr sectPr pPrChange').split()
+TBLPR_ORDER = ('tblStyle tblpPr tblOverlap bidiVisual tblStyleRowBandSize tblStyleColBandSize tblW jc '
+               'tblCellSpacing tblInd tblBorders shd tblLayout tblCellMar tblLook tblCaption tblDescription').split()
+
+
+def _insert_ordered(parent, el, order):
     tag = el.tag.split('}')[1]
-    idx = order.index('w:' + tag) if 'w:' + tag in order else len(order)
-    for i, child in enumerate(pPr):
-        ctag = 'w:' + child.tag.split('}')[1]
+    idx = order.index(tag)
+    for child in parent:
+        ctag = child.tag.split('}')[1] if isinstance(child.tag, str) else ''
         if ctag in order and order.index(ctag) > idx:
             child.addprevious(el)
             return el
-    pPr.append(el)
+    parent.append(el)
     return el
+
+
+def _ppr_append(p, el):
+    return _insert_ordered(p._p.get_or_add_pPr(), el, PPR_ORDER)
 
 
 def _plain(p):
@@ -709,17 +719,17 @@ class Builder:
         ind = OxmlElement('w:tblInd')
         ind.set(qn('w:w'), str(round((xs[0] - self.cl) * 20)))
         ind.set(qn('w:type'), 'dxa')
-        tblPr.append(ind)
+        _insert_ordered(tblPr, ind, TBLPR_ORDER)
         borders = OxmlElement('w:tblBorders')
         for side in ('top', 'left', 'bottom', 'right', 'insideH', 'insideV'):
             borders.append(_border(side, sz=t['lw'] * 8, color=t['color']))
-        tblPr.append(borders)
+        _insert_ordered(tblPr, borders, TBLPR_ORDER)
         layout = OxmlElement('w:tblLayout')
         layout.set(qn('w:type'), 'fixed')
-        tblPr.append(layout)
+        _insert_ordered(tblPr, layout, TBLPR_ORDER)
         mar = parse_xml(f'<w:tblCellMar {nsdecls("w")}><w:left w:w="0" w:type="dxa"/>'
                         f'<w:right w:w="0" w:type="dxa"/></w:tblCellMar>')
-        tblPr.append(mar)
+        _insert_ordered(tblPr, mar, TBLPR_ORDER)
         for ci, (x0, x1) in enumerate(zip(xs, xs[1:])):
             tbl.columns[ci].width = Pt(x1 - x0)
         for ri, (y0, y1) in enumerate(zip(ys, ys[1:])):
