@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PDF 转 Word</title>
+<style>
+:root{--bg:#f5f3ef;--card:#fff;--ink:#1f2933;--muted:#6b7280;--line:#e7e3dc;--accent:#2f6f68;--accent-soft:#e6f0ee;--warn:#9a6a14;--warn-soft:#fbf3e2;--bad:#a23b32;--bad-soft:#fbeceb}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 -apple-system,"PingFang SC","Microsoft YaHei","Noto Sans CJK SC",sans-serif}
+main{max-width:760px;margin:0 auto;padding:48px 20px 64px}
+header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:24px}
+h1{font-size:26px;margin:0;letter-spacing:.5px}
+.sub{color:var(--muted);margin:4px 0 0;font-size:14px}
+.badge{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--accent);background:var(--accent-soft);padding:5px 10px;border-radius:999px;white-space:nowrap}
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:22px;box-shadow:0 1px 2px rgba(31,41,51,.04)}
+#drop{border:1.5px dashed #cfc8bd;border-radius:14px;padding:38px 16px;text-align:center;cursor:pointer;transition:.15s}
+#drop:hover,#drop.over{border-color:var(--accent);background:var(--accent-soft)}
+#drop svg{color:var(--accent)}
+#drop strong{display:block;font-size:16px;margin:10px 0 2px}
+#drop span{color:var(--muted);font-size:13.5px}
+.bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:18px}
+button{font:inherit;border:1px solid var(--line);background:#fff;color:var(--ink);padding:8px 16px;border-radius:10px;cursor:pointer;transition:.15s}
+button:hover:not(:disabled){border-color:#bdb5a8}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+button.primary:hover:not(:disabled){filter:brightness(1.08)}
+button:disabled{opacity:.45;cursor:default}
+.grow{flex:1}
+#progress{height:6px;background:var(--line);border-radius:99px;overflow:hidden;margin-top:16px;display:none}
+#progress div{height:100%;width:0;background:var(--accent);transition:width .3s}
+ul{list-style:none;margin:16px 0 0;padding:0}
+li{display:flex;align-items:center;gap:12px;padding:12px 4px;border-top:1px solid var(--line)}
+li:first-child{border-top:0}
+.ico{width:34px;height:40px;border-radius:7px;background:#f1ece4;color:#a6402f;display:grid;place-items:center;font-size:10.5px;font-weight:700;flex:none}
+.meta{flex:1;min-width:0}
+.name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.status{font-size:13px;color:var(--muted)}
+.tag{font-size:12px;padding:3px 9px;border-radius:999px;background:#f1efeb;color:var(--muted);white-space:nowrap}
+.tag.ok{background:var(--accent-soft);color:var(--accent)}
+.tag.warn{background:var(--warn-soft);color:var(--warn)}
+.tag.bad{background:var(--bad-soft);color:var(--bad)}
+.tag.run{background:#eef2f7;color:#41618a}
+li button{padding:5px 12px;font-size:13px}
+#report{margin-top:18px;display:none}
+#report h2{font-size:15px;margin:0 0 8px}
+#report p{margin:2px 0;font-size:13.5px;color:var(--muted)}
+footer{margin-top:20px;color:var(--muted);font-size:12.5px;text-align:center}
+.empty{color:var(--muted);font-size:13.5px;text-align:center;padding:10px 0 0}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <h1>PDF 转 Word</h1>
+      <p class="sub">保留排版，转出来就能直接改</p>
+    </div>
+    <span class="badge"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>文件只在这台电脑上处理</span>
+  </header>
+
+  <section class="card">
+    <div id="drop" tabindex="0">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 15V4m0 0-4 4m4-4 4 4"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
+      <strong>把 PDF 拖到这里</strong>
+      <span>或点击选择文件，可以一次选多个</span>
+      <input id="file" type="file" accept=".pdf,application/pdf" multiple hidden>
+    </div>
+    <div id="progress"><div></div></div>
+    <ul id="list"></ul>
+    <p class="empty" id="empty">还没有文件</p>
+    <div class="bar">
+      <button class="primary" id="go" disabled>开始转换</button>
+      <span class="grow"></span>
+      <button id="zip" disabled>全部下载（zip）</button>
+      <button id="open">打开结果文件夹</button>
+      <button id="clear" disabled>清空</button>
+    </div>
+  </section>
+
+  <section class="card" id="report">
+    <h2>转换报告</h2>
+    <div id="reportBody"></div>
+  </section>
+
+  <footer>扫描件（整页都是图片的 PDF）暂不支持文字识别 · 转换结果同时保存在「转换结果」文件夹</footer>
+</main>
+<script>
+const $ = s => document.querySelector(s);
+const items = [];
+let busy = false;
+
+function esc(s){return s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+function tagClass(st){return {'成功':'ok','扫描件已跳过':'warn','失败':'bad','转换中':'run'}[st]||''}
+
+function render(){
+  $('#list').innerHTML = items.map((it,i)=>`
+    <li>
+      <div class="ico">PDF</div>
+      <div class="meta">
+        <div class="name" title="${esc(it.file.name)}">${esc(it.file.name)}</div>
+        <div class="status">${it.pages?it.pages+' 页 · ':''}${esc(it.error||(it.output?'已保存为 '+it.output:(it.file.size/1024).toFixed(0)+' KB'))}</div>
+      </div>
+      <span class="tag ${tagClass(it.status)}">${it.status}</span>
+      ${it.output?`<button data-i="${i}">下载</button>`:''}
+    </li>`).join('');
+  $('#empty').style.display = items.length?'none':'block';
+  const waiting = items.some(it=>it.status==='等待中');
+  $('#go').disabled = busy || !waiting;
+  $('#clear').disabled = busy || !items.length;
+  $('#zip').disabled = busy || !items.some(it=>it.output);
+}
+
+function add(files){
+  for(const f of files){
+    if(!/\.pdf$/i.test(f.name)) continue;
+    items.push({file:f,status:'等待中'});
+  }
+  render();
+}
+
+async function run(){
+  busy = true; render();
+  const todo = items.filter(it=>it.status==='等待中');
+  $('#progress').style.display='block';
+  let done = 0;
+  for(const it of todo){
+    it.status='转换中'; render();
+    try{
+      const res = await fetch('/convert?name='+encodeURIComponent(it.file.name),{method:'POST',body:it.file});
+      Object.assign(it, await res.json());
+    }catch(e){ it.status='失败'; it.error='无法连接本地服务，请确认启动窗口没有关闭'; }
+    done++; $('#progress div').style.width = (done/todo.length*100)+'%';
+    render();
+  }
+  busy = false; render(); report();
+  setTimeout(()=>{$('#progress').style.display='none';$('#progress div').style.width='0'},800);
+}
+
+function report(){
+  const g = s => items.filter(it=>it.status===s);
+  const ok=g('成功'), scan=g('扫描件已跳过'), bad=g('失败');
+  const line = (t,arr,f) => `<p><b>${t}（${arr.length}）</b>${arr.length?'：'+arr.map(f).join('；'):''}</p>`;
+  $('#reportBody').innerHTML =
+    line('成功',ok,it=>esc(it.file.name)+' → '+esc(it.output)) +
+    line('扫描件已跳过',scan,it=>esc(it.file.name)) +
+    line('失败',bad,it=>esc(it.file.name)+'（'+esc(it.error||'')+'）');
+  $('#report').style.display='block';
+}
+
+function download(names, zip){
+  const q = names.map(n=>'name='+encodeURIComponent(n)).join('&') + (zip?'&zip=1':'');
+  const a = document.createElement('a'); a.href='/download?'+q; a.download = zip ? '转换结果.zip' : names[0]; a.click();
+}
+
+$('#drop').onclick = ()=>$('#file').click();
+$('#drop').onkeydown = e=>{ if(e.key==='Enter'||e.key===' ') $('#file').click(); };
+$('#file').onchange = e=>{ add(e.target.files); e.target.value=''; };
+['dragenter','dragover'].forEach(t=>$('#drop').addEventListener(t,e=>{e.preventDefault();$('#drop').classList.add('over')}));
+['dragleave','drop'].forEach(t=>$('#drop').addEventListener(t,e=>{e.preventDefault();$('#drop').classList.remove('over')}));
+$('#drop').addEventListener('drop',e=>add(e.dataTransfer.files));
+document.addEventListener('dragover',e=>e.preventDefault());
+document.addEventListener('drop',e=>e.preventDefault());
+$('#go').onclick = run;
+$('#list').onclick = e=>{ const b=e.target.closest('button'); if(b) download([items[b.dataset.i].output]); };
+$('#zip').onclick = ()=>download(items.filter(it=>it.output).map(it=>it.output), true);
+$('#open').onclick = ()=>fetch('/open',{method:'POST'});
+$('#clear').onclick = ()=>{ items.length=0; $('#report').style.display='none'; render(); };
+render();
+</script>
+</body>
+</html>
